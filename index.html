@@ -1,1345 +1,740 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>房地產資料篩選與分析儀表板</title>
+    <title>批次文字轉 QR Code 工具</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf-autotable.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc; /* Tailwind gray-50 */
+            font-family: 'Inter', sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Aligns content to the top */
+            min-height: 100vh;
+            padding: 20px;
         }
-        .title-gradient {
-            background: -webkit-linear-gradient(45deg, #3b82f6, #14b8a6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            margin-top: 20px; /* Added margin to the top */
         }
-        /* Removed max-height to let table expand */
-        .table-container {
-            overflow-x: auto;
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
         }
-        /* Custom scrollbar */
-        .table-container::-webkit-scrollbar, .dropdown-checkbox-menu::-webkit-scrollbar { width: 8px; }
-        .table-container::-webkit-scrollbar-track, .dropdown-checkbox-menu::-webkit-scrollbar-track { background: #f1f5f9; }
-        .table-container::-webkit-scrollbar-thumb, .dropdown-checkbox-menu::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
-        .table-container::-webkit-scrollbar-thumb:hover, .dropdown-checkbox-menu::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        
-        .loader {
-            border: 5px solid #f3f3f3; border-top: 5px solid #3498db;
-            border-radius: 50%; width: 50px; height: 50px;
-            animation: spin 1s linear infinite;
+        h1 {
+            color: #1a73e8;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        /* Modal styles */
-        .modal {
-            display: none; position: fixed; z-index: 1000;
-            left: 0; top: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.4); transition: opacity 0.3s ease;
+        .subtitle {
+            color: #6a6a6a;
+            font-size: 1.1rem;
         }
-        .modal-content {
-            background-color: #fefefe; margin: 15% auto; padding: 24px;
-            border-radius: 12px; width: 90%; max-width: 450px;
-            text-align: center; box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2),0 6px 20px 0 rgba(0,0,0,0.19);
-            transform: translateY(-50px); transition: transform 0.3s ease;
+        .instructions {
+            background-color: #e6f3ff;
+            border-left: 6px solid #1a73e8;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
         }
-        .modal-close {
-            color: #aaa; float: right; font-size: 28px; font-weight: bold; line-height: 1; cursor: pointer;
+        .instructions h3 {
+            color: #1a73e8;
+            font-size: 1.4rem;
+            margin-top: 0;
+            margin-bottom: 15px;
         }
-        .modal-close:hover, .modal-close:focus { color: black; text-decoration: none; }
-
-        /* Dropdown with checkboxes */
-        .dropdown-checkbox-container { position: relative; display: inline-block; width: 100%; }
-        .dropdown-checkbox-button {
-            width: 100%; text-align: left; background-color: white; padding: 0.5rem;
-            border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer;
-            display: flex; justify-content: space-between; align-items: center;
+        .instructions ul {
+            list-style: disc;
+            padding-left: 25px;
+            margin: 0;
         }
-        .dropdown-checkbox-menu {
-            display: none; position: absolute; background-color: white;
-            width: 100%; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            z-index: 50; border-radius: 0.5rem; border: 1px solid #e5e7eb;
-            max-height: 250px; overflow-y: auto; margin-top: 4px;
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.6;
         }
-        .dropdown-checkbox-menu label { display: block; padding: 8px 12px; cursor: pointer; }
-        .dropdown-checkbox-menu label:hover { background-color: #f3f4f6; }
-
-        /* Toggle switch style */
-        #searchModeToggle:checked ~ .dot { transform: translateX(1rem); }
-        #searchModeToggle:checked ~ .toggle-bg { background-color: #3b82f6; }
-        #searchModeToggle:disabled ~ * { cursor: not-allowed; opacity: 0.5; }
-
-        /* Tab styles */
-        .tab-button {
+        .input-section {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+        }
+        .input-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        textarea {
+            width: 100%;
+            min-height: 250px;
+            padding: 18px;
+            border: 2px solid #c9d6e5;
+            border-radius: 10px;
+            font-size: 1rem;
+            resize: vertical;
+            font-family: 'Consolas', 'Monaco', monospace;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.2);
+        }
+        .example-text {
+            font-size: 0.9rem;
+            color: #777;
+            margin-top: 15px;
+            background-color: #f9fbfd;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed #d1d9e6;
+            line-height: 1.5;
+            font-family: monospace;
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
             transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #0d47a1 0%, #1a73e8 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #4CAF50 0%, #2e7d32 100%);
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #2e7d32 0%, #4CAF50 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+            color: white;
+        }
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #c62828 0%, #f44336 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        .stats {
+            background-color: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            gap: 15px;
+            border: 1px solid #bbdefb;
             display: none; /* Hidden by default */
         }
-        .tab-button.visible {
-            display: inline-flex;
+        .stats-item {
+            font-size: 1rem;
+            color: #3f51b5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .tab-button.active {
-            border-color: #3b82f6;
-            color: #2563eb;
+        .stats-item strong {
+            font-size: 1.5rem;
+            color: #1a73e8;
+            margin-top: 5px;
         }
-        .tab-content {
-            display: none;
+        .preview-section {
+            display: none; /* Hidden by default */
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e0e0e0;
         }
-        .tab-content.active {
-            display: block;
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
         }
-        .sort-button {
-            @apply px-3 py-1 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-100 transition-colors;
+        .preview-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
         }
-        .sort-button.active {
-            @apply bg-blue-500 text-white border-blue-500;
+        .qr-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 30px;
+        }
+        .qr-item {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            position: relative;
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s ease;
+        }
+        .qr-item:hover {
+            transform: translateY(-5px);
+        }
+        .qr-number {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background-color: #1a73e8;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .qr-label {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background-color: #f0f4f8;
+            border-radius: 8px;
+            word-break: break-all;
+        }
+        .qr-container {
+            display: inline-block;
+            padding: 15px;
+            background-color: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+        .qr-content-display { /* Renamed from qr-url for generality */
+            font-size: 0.9rem;
+            color: #6a6a6a;
+            word-break: break-all;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9fbfd;
+            border-radius: 8px;
+            max-height: 70px;
+            overflow-y: auto;
+            text-align: left;
+            border: 1px dashed #d1d9e6;
+        }
+        /* Custom Modal for alerts and confirmations */
+        .custom-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .custom-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .custom-modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            min-width: 350px;
+            max-width: 90%;
+            text-align: center;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        .custom-modal-overlay.active .custom-modal-content {
+            transform: scale(1);
+        }
+        .custom-modal-content h3 {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .custom-modal-content p {
+            font-size: 1.1rem;
+            color: #555;
+            margin-bottom: 25px;
+        }
+        .custom-modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .custom-modal-buttons .btn {
+            flex-grow: 1;
+        }
+
+        /* Progress Modal specific styles */
+        .progress-modal .progress-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            min-width: 300px;
+            text-align: center;
+        }
+        .progress-modal .progress-bar {
+            width: 100%;
+            height: 25px;
+            background: #e9ecef;
+            border-radius: 12px;
+            margin: 20px 0;
+            overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .progress-modal .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #1a73e8, #4285f4);
+            transition: width 0.3s ease-out;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        .progress-modal #progressText {
+            font-size: 1.1rem;
+            color: #555;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2rem;
+            }
+            .preview-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .button-group {
+                flex-direction: column;
+                width: 100%;
+            }
+            .button-group .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-800 p-4 md:p-8">
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>批次文字轉 QR Code 工具</h1>
+            <p class="subtitle">將文字內容自動生成 QR Code</p>
+        </div>
 
-    <div class="max-w-7xl mx-auto">
-        <!-- Header -->
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold title-gradient">房地產資料篩選與分析儀表板</h1>
-            <p class="mt-2 text-gray-600">上傳您的CSV檔案，篩選資料並產生分析報告。</p>
-        </header>
+        <div class="instructions">
+            <h3>使用說明：</h3>
+            <ul>
+                <li>在下方文字區域貼上您要轉換的文字內容</li>
+                <li>系統會自動偵測每一行或「標籤: 內容」格式的項目</li>
+                <li>每個偵測到的項目會自動編號並生成對應的 QR Code</li>
+                <li>可以為內容加上標籤，格式：<strong>標籤名稱: 您的內容</strong></li>
+                <li>支援批次下載所有 QR Code 為 ZIP 檔案</li>
+            </ul>
+        </div>
 
-        <!-- Loading Indicator -->
-        <div id="loader" class="hidden fixed top-0 left-0 w-full h-full bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
-            <div class="text-center">
-                <div class="loader mx-auto"></div>
-                <p class="text-white mt-4" id="loaderText">讀取中...</p>
+        <div class="input-section">
+            <label class="input-label" for="urlInput">貼上您要轉換的文字內容：</label>
+            <textarea id="urlInput" placeholder="在這裡貼上您的文字內容，系統會將每一行有效文字轉換為 QR Code...範例：&#10;專案網站: https://example.com&#10;文件連結: https://docs.example.com/guide&#10;戶號: 09F-A01&#10;產品編號: XYZ-789&#10;這是一段任意文字內容。&#10;您也可以直接貼上多行文字內容..."></textarea>
+            <div class="example-text">
+                支援格式：<br>
+                • 標籤名稱: 您的內容<br>
+                • 直接貼上任意文字行<br>
+                • 混合文字中的有效內容也會被偵測
+                <br>
+                **注意：程式現在會將「 ** ** 」作為項目之間的分隔符號。
             </div>
-        </div>
-        
-        <!-- Custom Alert Modal -->
-        <div id="customAlert" class="modal">
-          <div class="modal-content">
-            <span class="modal-close" id="modalClose">&times;</span>
-            <p id="alertMessage" class="my-4 text-lg text-gray-700"></p>
-          </div>
-        </div>
-
-        <!-- Filters and Controls -->
-        <div class="bg-white p-6 rounded-2xl shadow-lg mb-8">
-            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 items-start">
-                <!-- Col 1 -->
-                <div class="space-y-6">
-                    <div>
-                        <label for="csvFile" class="block text-sm font-medium text-gray-700 mb-2">1. 選擇CSV檔案</label>
-                        <input type="file" id="csvFile" accept=".csv" class="block w-full text-sm text-gray-500
-                            file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold
-                            file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
-                    </div>
-                    <div>
-                        <label for="districtFilter" class="block text-sm font-medium text-gray-700 mb-2">2. 行政區</label>
-                        <select id="districtFilter" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" disabled>
-                            <option value="all">所有行政區</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Col 2 -->
-                <div class="space-y-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">3. 建築類型</label>
-                        <div id="buildingTypeContainer" class="dropdown-checkbox-container">
-                            <button type="button" id="buildingTypeButton" class="dropdown-checkbox-button" disabled>
-                                <span id="buildingTypeButtonText">所有類型</span>
-                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </button>
-                            <div id="buildingTypeMenu" class="dropdown-checkbox-menu"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <label for="buildingNameSearch" class="block text-sm font-medium text-gray-700 mb-2">4. 建案名稱搜尋</label>
-                        <input type="text" id="buildingNameSearch" placeholder="輸入建案關鍵字..." class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition" disabled>
-                        <div class="flex items-center justify-end mt-2 h-6">
-                            <label for="searchModeToggle" class="flex items-center cursor-pointer">
-                                <span class="mr-3 text-sm font-medium text-gray-700" id="searchModeLabel">模糊</span>
-                                <div class="relative">
-                                    <input type="checkbox" id="searchModeToggle" class="sr-only" disabled>
-                                    <div class="toggle-bg block bg-gray-200 w-10 h-6 rounded-full"></div>
-                                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out"></div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Col 3 -->
-                <div class="md:col-span-1 lg:col-span-2 space-y-6">
-                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">5. 交易時間</label>
-                        <div class="flex items-center space-x-2">
-                            <input type="date" id="startDate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition" disabled>
-                            <span class="text-gray-500">至</span>
-                            <input type="date" id="endDate" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition" disabled>
-                        </div>
-                    </div>
-                    <div class="pt-2"> 
-                        <button id="generateReportBtn" class="bg-blue-600 w-full text-white font-bold py-3 px-8 rounded-lg hover:bg-blue-700 transition-colors duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
-                            產生分析報告
-                        </button>
-                    </div>
-                </div>
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="detectAndGenerateQR()">偵測內容並生成 QR Code</button>
+                <button class="btn btn-danger" onclick="clearAll()">清除全部</button>
+            </div>
+            <div class="stats" id="stats">
+                <span class="stats-item">偵測到的項目數量：<strong id="itemCount">0</strong></span>
+                <span class="stats-item">含標籤：<strong id="labeledCount">0</strong></span>
             </div>
         </div>
 
-        <!-- Results Section -->
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">篩選結果</h2>
-        <div id="resultsSummary" class="mb-4 text-center h-6 font-medium"></div>
-        <div class="bg-white rounded-2xl shadow-lg p-4">
-             <div class="table-container rounded-lg border">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50 sticky top-0 z-10">
-                        <tr id="tableHeader"></tr>
-                    </thead>
-                    <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
-                        <tr><td colspan="10" class="text-center p-8 text-gray-500">請先載入並篩選資料。</td></tr>
-                    </tbody>
-                </table>
-             </div>
-             <!-- Pagination Controls -->
-             <div id="paginationControls" class="flex items-center justify-between mt-4"></div>
+        <div class="preview-section" id="previewSection">
+            <div class="preview-header">
+                <h2 class="preview-title">QR Code 預覽</h2>
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="downloadAllAsZip()">
+                        下載全部 (ZIP)
+                    </button>
+                    <button class="btn btn-primary" onclick="regenerateAll()">
+                        重新生成
+                    </button>
+                </div>
+            </div>
+            <div class="qr-grid" id="qrGrid"></div>
         </div>
+    </div>
 
-        <!-- Analysis Report Section -->
-        <div id="analysisSection" class="mt-12 hidden">
-             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-gray-800">分析報告</h2>
-                <button id="exportPdfBtn" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors duration-300">
-                    匯出 PDF
-                </button>
-             </div>
-             <div id="report-content-wrapper" class="bg-white rounded-2xl shadow-lg p-4 sm:p-6">
-                <!-- Tab Buttons -->
-                <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex flex-wrap space-x-6" id="tabContainer">
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="core-metrics">核心指標</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="case-ranking">個案排名</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="house-price-band">總價帶分析</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="unit-price">房屋單價</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="parking-price">車位單價</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="annual-sales">年度去化</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="quarterly-sales">每季去化</button>
-                        <button class="tab-button py-4 px-1 text-lg font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap" data-tab="monthly-sales">每月去化</button>
-                    </nav>
-                </div>
-                <!-- Tab Content -->
-                <div class="pt-6">
-                    <div id="core-metrics-content" class="tab-content"></div>
-                    <div id="case-ranking-content" class="tab-content"></div>
-                    <div id="house-price-band-content" class="tab-content"></div>
-                    <div id="unit-price-content" class="tab-content"></div>
-                    <div id="parking-price-content" class="tab-content"></div>
-                    <div id="annual-sales-content" class="tab-content"></div>
-                    <div id="quarterly-sales-content" class="tab-content"></div>
-                    <div id="monthly-sales-content" class="tab-content"></div>
-                </div>
-             </div>
+    <!-- Custom Modal Structure -->
+    <div id="customModalOverlay" class="custom-modal-overlay">
+        <div class="custom-modal-content">
+            <h3 id="modalTitle"></h3>
+            <p id="modalMessage"></p>
+            <div class="custom-modal-buttons" id="modalButtons"></div>
+        </div>
+    </div>
+
+    <!-- Progress Modal Structure (initially hidden) -->
+    <div id="progressModal" class="custom-modal-overlay">
+        <div class="progress-content">
+            <h3>正在生成 ZIP 檔案...</h3>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">0%</div>
+            </div>
+            <div id="progressText">準備中...</div>
         </div>
     </div>
 
     <script>
-        // DOM Elements
-        const csvFileInput = document.getElementById('csvFile');
-        const districtFilter = document.getElementById('districtFilter');
-        const buildingNameSearch = document.getElementById('buildingNameSearch');
-        const searchModeToggle = document.getElementById('searchModeToggle');
-        const searchModeLabel = document.getElementById('searchModeLabel');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const generateReportBtn = document.getElementById('generateReportBtn');
-        const exportPdfBtn = document.getElementById('exportPdfBtn');
-        const tableHeader = document.getElementById('tableHeader');
-        const tableBody = document.getElementById('tableBody');
-        const resultsSummary = document.getElementById('resultsSummary');
-        const paginationControls = document.getElementById('paginationControls');
-        const analysisSection = document.getElementById('analysisSection');
-        const tabContainer = document.getElementById('tabContainer');
-        const loader = document.getElementById('loader');
-        const loaderText = document.getElementById('loaderText');
-        const customAlert = document.getElementById('customAlert');
-        const alertMessage = document.getElementById('alertMessage');
-        const modalClose = document.getElementById('modalClose');
-        const buildingTypeContainer = document.getElementById('buildingTypeContainer');
-        const buildingTypeButton = document.getElementById('buildingTypeButton');
-        const buildingTypeButtonText = document.getElementById('buildingTypeButtonText');
-        const buildingTypeMenu = document.getElementById('buildingTypeMenu');
+        let detectedItems = [];
+        let qrCodes = [];
 
-        // Global state
-        let fullData = [];
-        let filteredData = [];
-        let headers = [];
-        let columnNames = { district: null, buildingType: null, date: null, buildingName: null, totalPrice: null, area: null, housePrice: null, room: null, bathroom: null, parkingPrice: null, parkingCount: null, parkingType: null };
-        let currentPage = 1;
-        let caseRankingSortKey = 'avgUnitPrice'; // Default sort key
-        const ROWS_PER_PAGE = 30;
+        // 偵測標籤格式（標籤: 內容 或 標籤：內容）- 支援中英文冒號，且內容可以是任何字元
+        const labeledContentRegex = /^([^:：]+?)[:：]\s*(.+)$/;
 
-        // --- Custom Alert ---
-        function showAlert(message) {
-            alertMessage.textContent = message;
-            customAlert.style.display = 'block';
-            setTimeout(() => { customAlert.style.opacity = 1; customAlert.querySelector('.modal-content').style.transform = 'translateY(0)'; }, 10);
-        }
-        function hideAlert() {
-            customAlert.style.opacity = 0;
-            customAlert.querySelector('.modal-content').style.transform = 'translateY(-50px)';
-            setTimeout(() => customAlert.style.display = 'none', 300);
-        }
-        modalClose.onclick = hideAlert;
-        
-        function showLoader(show, text = "讀取中...") {
-            loaderText.textContent = text;
-            loader.classList.toggle('hidden', !show);
-        }
+        /**
+         * 顯示自訂訊息框
+         * @param {string} title - 訊息框標題
+         * @param {string} message - 訊息框內容
+         * @param {function} onConfirm - 點擊「確定」時的回調函數 (僅用於確認框)
+         * @param {boolean} isConfirm - 是否為確認框 (true: 確認框, false: 提示框)
+         */
+        function showCustomModal(title, message, onConfirm = null, isConfirm = false) {
+            const overlay = document.getElementById('customModalOverlay');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            const buttonsContainer = document.getElementById('modalButtons');
+            buttonsContainer.innerHTML = '';
 
-        // --- Utility Functions ---
-        const safeParseFloat = (val) => {
-            if (val === null || val === undefined) return 0;
-            const num = parseFloat(String(val).replace(/,/g, ''));
-            return isNaN(num) ? 0 : num;
-        };
-        const safeParseInt = (val) => {
-            if (val === null || val === undefined) return 0;
-            const num = parseInt(String(val).replace(/,/g, ''), 10);
-            return isNaN(num) ? 0 : num;
-        };
-
-        function parseDateString(dateStr) {
-            if (!dateStr || typeof dateStr !== 'string') return null;
-            const trimmedStr = dateStr.trim();
-            const d = new Date(trimmedStr);
-            if (!isNaN(d.getTime())) return d;
-            try {
-                if (trimmedStr.length >= 7) {
-                    const year = parseInt(trimmedStr.substring(0, 3), 10) + 1911;
-                    const month = parseInt(trimmedStr.substring(3, 5), 10) - 1;
-                    const day = parseInt(trimmedStr.substring(5, 7), 10);
-                    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
-                    const minguoDate = new Date(year, month, day);
-                    if (minguoDate.getFullYear() === year && minguoDate.getMonth() === month && minguoDate.getDate() === day) return minguoDate;
-                } else if (trimmedStr.length >= 5) {
-                    const year = parseInt(trimmedStr.substring(0, 3), 10) + 1911;
-                    const month = parseInt(trimmedStr.substring(3, 5), 10) - 1;
-                    if (isNaN(year) || isNaN(month)) return null;
-                    const minguoDate = new Date(year, month, 1);
-                    if (minguoDate.getFullYear() === year && minguoDate.getMonth() === month) return minguoDate;
-                }
-            } catch (e) { console.error(`Error converting Minguo date: ${dateStr}`, e); return null; }
-            return null;
-        }
-        
-        function toISODateString(date) { return date.toISOString().split('T')[0]; }
-
-        function findColumnName(headerList, keywords) {
-            for (const keyword of keywords) {
-                const foundHeader = headerList.find(h => h.trim().toLowerCase().includes(keyword.toLowerCase()));
-                if (foundHeader) return foundHeader.trim();
-            }
-            return null;
-        }
-
-        function calculateQuartiles(arr) {
-            if (arr.length === 0) return { q1: 0, median: 0, q3: 0, min: 0, max: 0, avg: 0 };
-            
-            const sortedArr = [...arr].sort((a, b) => a - b);
-            const mid = Math.floor(sortedArr.length / 2);
-
-            const getMedian = (subArr) => {
-                if (subArr.length === 0) return 0;
-                const subMid = Math.floor(subArr.length / 2);
-                return subArr.length % 2 === 0 ? (subArr[subMid - 1] + subArr[subMid]) / 2 : subArr[subMid];
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn btn-primary';
+            confirmBtn.textContent = '確定';
+            confirmBtn.onclick = () => {
+                overlay.classList.remove('active');
+                if (onConfirm) onConfirm();
             };
+            buttonsContainer.appendChild(confirmBtn);
 
-            const q1 = getMedian(sortedArr.slice(0, mid));
-            const median = getMedian(sortedArr);
-            const q3 = getMedian(sortedArr.slice(sortedArr.length % 2 === 0 ? mid : mid + 1));
-            const min = sortedArr[0];
-            const max = sortedArr[sortedArr.length - 1];
-            const avg = sortedArr.reduce((a, b) => a + b, 0) / sortedArr.length;
-
-            return { q1, median, q3, min, max, avg };
+            if (isConfirm) {
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'btn btn-danger';
+                cancelBtn.textContent = '取消';
+                cancelBtn.onclick = () => {
+                    overlay.classList.remove('active');
+                };
+                buttonsContainer.appendChild(cancelBtn);
+            }
+            overlay.classList.add('active');
         }
 
-        // --- Data Loading and Processing ---
-        function handleFile(file) {
-            if (!file) { showAlert('請選擇一個檔案。'); return; }
-            showLoader(true);
-            Papa.parse(file, {
-                header: true, skipEmptyLines: true,
-                complete: (results) => {
-                    if (results.errors.length > 0) {
-                        console.error("CSV parsing errors:", results.errors);
-                        showAlert(`檔案解析時發生錯誤，請檢查檔案第 ${results.errors[0].row} 行附近的格式。`);
-                    }
-                    fullData = results.data;
-                    headers = results.meta.fields;
-                    console.log("偵測到的 CSV 標頭:", headers);
-                    
-                    const columnMapping = {
-                        district: ['行政區', '鄉鎮市區'],
-                        buildingType: ['建物型態'],
-                        date: ['交易年月', '交易年月日'],
-                        buildingName: ['建案名稱'],
-                        totalPrice: ['產權總價(萬)', '產權總價', '總價'],
-                        area: ['房屋坪數(坪)', '房屋坪數', '坪數'],
-                        housePrice: ['房屋總價(萬)', '房屋總價'],
-                        room: ['房', '房間數'],
-                        bathroom: ['衛', '衛浴數'],
-                        parkingPrice: ['車位總價(萬)', '車位總價'],
-                        parkingCount: ['車位數'],
-                        parkingType: ['車位類型']
-                    };
+        /**
+         * 偵測輸入文字中的內容並生成 QR Code
+         */
+        function detectAndGenerateQR() {
+            const input = document.getElementById('urlInput').value;
+            if (!input.trim()) {
+                showCustomModal('輸入錯誤', '請先輸入要轉換的文字內容！');
+                return;
+            }
 
-                    let missingCols = [];
-                    for (const key in columnMapping) {
-                        columnNames[key] = findColumnName(headers, columnMapping[key]);
-                        if (!columnNames[key] && !['buildingName', 'housePrice', 'parkingPrice', 'parkingCount', 'parkingType'].includes(key)) {
-                            missingCols.push(`'${columnMapping[key][0]}'`);
+            detectedItems = []; // 重置 detectedItems
+            // 首先將輸入內容按 " ** " 分割，處理用戶提供的特殊分隔符
+            const rawSegments = input.split(' ** ').map(segment => segment.trim());
+
+            rawSegments.forEach(rawSegment => {
+                if (!rawSegment) {
+                    return; // 跳過空片段
+                }
+
+                // 處理每個片段中的多行內容
+                const linesInSegment = rawSegment.split('\n').map(line => line.trim()).filter(line => line !== '');
+
+                linesInSegment.forEach(line => {
+                    // 嘗試匹配標籤格式
+                    const match = line.match(labeledContentRegex);
+                    if (match) {
+                        const label = match[1].trim();
+                        const content = match[2].trim();
+                        if (content) { // 確保內容不為空
+                            detectedItems.push({ content: content, label: label });
+                            console.log(`偵測到帶標籤項目: 標籤='${label}', 內容='${content}'`); // Debugging log
+                        }
+                    } else {
+                        // 如果沒有匹配到標籤格式，則將整行作為內容
+                        if (line) { // 確保內容不為空
+                            detectedItems.push({ content: line, label: null });
+                            console.log(`偵測到無標籤項目: 內容='${line}'`); // Debugging log
                         }
                     }
-
-                    if(missingCols.length > 0) {
-                        showAlert(`警告：在您的CSV檔案中找不到以下必要的欄位：${missingCols.join(', ')}。部分分析功能可能無法使用。`);
-                    }
-
-                    enableFilters(true);
-                    populateFilters(fullData);
-                    applyFilters();
-                    showLoader(false);
-                },
-                error: (err) => { showAlert("檔案解析失敗，請確認檔案格式是否為標準CSV。"); showLoader(false); }
-            });
-        }
-        
-        function enableFilters(enabled) {
-            [districtFilter, buildingTypeButton, buildingNameSearch, searchModeToggle, startDateInput, endDateInput, generateReportBtn].forEach(el => el.disabled = !enabled);
-        }
-
-        function populateFilters(data) {
-            if (data.length === 0) return;
-            const districts = new Set();
-            const buildingTypes = new Set();
-            let minDate = null, maxDate = null;
-            data.forEach(row => {
-                if (columnNames.district && row[columnNames.district]) districts.add(row[columnNames.district]);
-                if (columnNames.buildingType && row[columnNames.buildingType]) buildingTypes.add(row[columnNames.buildingType].split('(')[0]);
-                if (columnNames.date) {
-                    const currentDate = parseDateString(row[columnNames.date]);
-                    if (currentDate) {
-                        if (!minDate || currentDate < minDate) minDate = currentDate;
-                        if (!maxDate || currentDate > maxDate) maxDate = currentDate;
-                    }
-                }
-            });
-            districtFilter.innerHTML = '<option value="all">所有行政區</option>';
-            [...districts].sort((a,b) => a.localeCompare(b, 'zh-Hant')).forEach(d => {
-                const option = document.createElement('option');
-                option.value = d; option.textContent = d;
-                districtFilter.appendChild(option);
-            });
-            buildingTypeMenu.innerHTML = '';
-            const sortedTypes = [...buildingTypes].sort();
-            const allLabel = document.createElement('label');
-            allLabel.className = "font-semibold border-b";
-            allLabel.innerHTML = `<input type="checkbox" class="mr-2" id="select-all-types">全部選取`;
-            buildingTypeMenu.appendChild(allLabel);
-            sortedTypes.forEach(t => {
-                const label = document.createElement('label');
-                label.innerHTML = `<input type="checkbox" class="mr-2 building-type-checkbox" value="${t}">${t}`;
-                buildingTypeMenu.appendChild(label);
-            });
-            document.getElementById('select-all-types').addEventListener('change', (e) => {
-                document.querySelectorAll('.building-type-checkbox').forEach(cb => cb.checked = e.target.checked);
-                updateBuildingTypeButtonText();
-                applyFilters();
-            });
-            if (minDate && maxDate) {
-                startDateInput.value = toISODateString(minDate);
-                endDateInput.value = toISODateString(maxDate);
-            }
-        }
-        
-        // --- Rendering & Pagination ---
-        function renderTable(dataToRender, page = 1) {
-            tableHeader.innerHTML = headers.map(h => `<th class="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">${h}</th>`).join('');
-            
-            const startIndex = (page - 1) * ROWS_PER_PAGE;
-            const endIndex = startIndex + ROWS_PER_PAGE;
-            const paginatedData = dataToRender.slice(startIndex, endIndex);
-
-            let content = '';
-            if (fullData.length > 0 && dataToRender.length === 0) {
-                 content = `<tr><td colspan="${headers.length || 10}" class="text-center p-8 text-gray-500">沒有符合條件的資料。</td></tr>`;
-            } else if (fullData.length === 0){
-                 content = `<tr><td colspan="10" class="text-center p-8 text-gray-500">請先載入並篩選資料。</td></tr>`;
-            } else {
-                content = paginatedData.map(row => `
-                    <tr class="hover:bg-gray-50 transition-colors duration-150">
-                        ${headers.map(h => `<td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700">${row[h] || ''}</td>`).join('')}
-                    </tr>`).join('');
-            }
-            tableBody.innerHTML = content;
-            resultsSummary.textContent = fullData.length > 0 ? `共找到 ${dataToRender.length} 筆資料` : '';
-            renderPaginationControls(dataToRender.length, page);
-        }
-
-        function renderPaginationControls(totalRows, page) {
-            paginationControls.innerHTML = '';
-            const totalPages = Math.ceil(totalRows / ROWS_PER_PAGE);
-            if (totalPages <= 1) return;
-
-            const prevDisabled = page === 1 ? 'disabled' : '';
-            const nextDisabled = page === totalPages ? 'disabled' : '';
-
-            paginationControls.innerHTML = `
-                <button id="prevPageBtn" class="bg-white border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" ${prevDisabled}>
-                    上一頁
-                </button>
-                <span class="text-gray-700">第 ${page} / ${totalPages} 頁</span>
-                <button id="nextPageBtn" class="bg-white border border-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed" ${nextDisabled}>
-                    下一頁
-                </button>
-            `;
-
-            document.getElementById('prevPageBtn').addEventListener('click', () => {
-                if (currentPage > 1) {
-                    currentPage--;
-                    renderTable(filteredData, currentPage);
-                }
-            });
-            document.getElementById('nextPageBtn').addEventListener('click', () => {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    renderTable(filteredData, currentPage);
-                }
-            });
-        }
-        
-        // --- Filtering Logic ---
-        function applyFilters() {
-            if (fullData.length === 0) return;
-            showLoader(true);
-            
-            setTimeout(() => {
-                const district = districtFilter.value;
-                const searchTerm = buildingNameSearch.value.trim();
-                const isExactMatch = searchModeToggle.checked;
-                const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
-                const endDate = endDateInput.value ? new Date(endDateInput.value) : null;
-                if (endDate) endDate.setHours(23, 59, 59, 999);
-                const selectedTypes = Array.from(document.querySelectorAll('.building-type-checkbox:checked')).map(cb => cb.value);
-
-                filteredData = fullData.filter(row => {
-                    const districtMatch = district === 'all' || !columnNames.district || row[columnNames.district] === district;
-                    const buildingTypeMatch = selectedTypes.length === 0 || !columnNames.buildingType || (row[columnNames.buildingType] && selectedTypes.includes(row[columnNames.buildingType].split('(')[0]));
-                    const buildingNameMatch = !searchTerm || !columnNames.buildingName || !row[columnNames.buildingName] || (isExactMatch ? row[columnNames.buildingName].trim() === searchTerm : row[columnNames.buildingName].includes(searchTerm));
-                    let dateMatch = true;
-                    if (columnNames.date && (startDate || endDate)) {
-                        const dateValue = row[columnNames.date];
-                        const transactionDate = parseDateString(dateValue);
-                        if (transactionDate) {
-                            const startMatch = !startDate || transactionDate >= startDate;
-                            const endMatch = !endDate || transactionDate <= endDate;
-                            dateMatch = startMatch && endMatch;
-                        } else { dateMatch = false; }
-                    }
-                    return districtMatch && buildingTypeMatch && dateMatch && buildingNameMatch;
-                });
-                
-                currentPage = 1; // Reset to first page after filtering
-                renderTable(filteredData, currentPage);
-                analysisSection.style.display = 'none'; // Hide analysis on filter change
-                showLoader(false);
-            }, 10);
-        }
-        
-        // --- Analysis Logic ---
-        function generateAnalysisReport() {
-            if (filteredData.length === 0) {
-                showAlert('沒有可供分析的資料，請先篩選資料。');
-                return;
-            }
-            showLoader(true);
-            analysisSection.style.display = 'block';
-
-            setTimeout(() => {
-                renderCoreMetrics(filteredData);
-                renderCaseRanking(filteredData, caseRankingSortKey);
-                renderHousePriceBandAnalysis(filteredData);
-                renderUnitPriceAnalysis(filteredData);
-                renderParkingPriceAnalysis(filteredData);
-                renderAnnualSales(filteredData);
-                renderQuarterlySales(filteredData);
-                renderMonthlySales(filteredData);
-                
-                updateVisibleTabs();
-
-                showLoader(false);
-                analysisSection.scrollIntoView({ behavior: 'smooth' });
-            }, 50);
-        }
-
-        function updateVisibleTabs() {
-            const startDate = startDateInput.value ? new Date(startDateInput.value) : null;
-            const endDate = endDateInput.value ? new Date(endDateInput.value) : null;
-            
-            let diffDays = 366; // Default to show all if no dates
-            if (startDate && endDate) {
-                const diffTime = Math.abs(endDate - startDate);
-                diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-
-            const tabs = {
-                'core-metrics': true,
-                'case-ranking': true,
-                'house-price-band': true,
-                'unit-price': true,
-                'parking-price': true,
-                'annual-sales': diffDays > 365,
-                'quarterly-sales': diffDays > 90,
-                'monthly-sales': diffDays <= 1095,
-            };
-
-            let firstVisibleTab = 'core-metrics';
-
-            for (const tabId in tabs) {
-                const button = document.querySelector(`[data-tab='${tabId}']`);
-                if (tabs[tabId]) {
-                    button.classList.add('visible');
-                } else {
-                    button.classList.remove('visible');
-                    button.classList.remove('active');
-                    document.getElementById(`${tabId}-content`).classList.remove('active');
-                }
-            }
-            
-             if (tabs['monthly-sales']) firstVisibleTab = 'monthly-sales';
-             else if (tabs['quarterly-sales']) firstVisibleTab = 'quarterly-sales';
-             else if (tabs['annual-sales']) firstVisibleTab = 'annual-sales';
-             else if(tabs['parking-price']) firstVisibleTab = 'parking-price';
-             else if (tabs['unit-price']) firstVisibleTab = 'unit-price';
-             else if (tabs['house-price-band']) firstVisibleTab = 'house-price-band';
-             else if (tabs['case-ranking']) firstVisibleTab = 'case-ranking';
-            
-            switchTab(firstVisibleTab);
-        }
-
-        function renderCoreMetrics(data) {
-            const container = document.getElementById('core-metrics-content');
-            const missing = [];
-            if (!columnNames.totalPrice) missing.push("'產權總價(萬)'");
-            if (!columnNames.area) missing.push("'房屋坪數(坪)'");
-            if (!columnNames.housePrice && !columnNames.totalPrice) missing.push("'房屋總價(萬)' 或 '產權總價(萬)'");
-
-
-            if (missing.length > 0) {
-                container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少必要的欄位 (${missing.join(', ')})，無法計算核心指標。</p>`;
-                return;
-            }
-
-            const totalSales = data.reduce((sum, row) => sum + safeParseFloat(row[columnNames.totalPrice]), 0);
-            const totalArea = data.reduce((sum, row) => sum + safeParseFloat(row[columnNames.area]), 0);
-            const totalHousePrice = data.reduce((sum, row) => {
-                const housePriceVal = columnNames.housePrice ? row[columnNames.housePrice] : (safeParseFloat(row[columnNames.totalPrice]) - safeParseFloat(row[columnNames.parkingPrice]));
-                return sum + safeParseFloat(housePriceVal);
-            }, 0);
-            const avgPrice = totalArea > 0 ? totalHousePrice / totalArea : 0;
-            const transactionCount = data.length;
-
-            container.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
-                    <div class="bg-blue-50 p-4 rounded-lg">
-                        <h3 class="text-lg font-semibold text-blue-800">市場去化總銷售金額</h3>
-                        <p class="text-3xl font-bold text-blue-600">${totalSales.toLocaleString('en-US', {maximumFractionDigits: 0})} <span class="text-base font-medium">萬</span></p>
-                    </div>
-                    <div class="bg-green-50 p-4 rounded-lg">
-                        <h3 class="text-lg font-semibold text-green-800">總銷去化房屋坪數</h3>
-                        <p class="text-3xl font-bold text-green-600">${totalArea.toLocaleString('en-US', {maximumFractionDigits: 2})} <span class="text-base font-medium">坪</span></p>
-                    </div>
-                    <div class="bg-indigo-50 p-4 rounded-lg">
-                        <h3 class="text-lg font-semibold text-indigo-800">總行政區平均單價</h3>
-                        <p class="text-3xl font-bold text-indigo-600">${avgPrice.toLocaleString('en-US', {maximumFractionDigits: 2})} <span class="text-base font-medium">萬/坪</span></p>
-                    </div>
-                    <div class="bg-yellow-50 p-4 rounded-lg">
-                        <h3 class="text-lg font-semibold text-yellow-800">行政區去化筆數</h3>
-                        <p class="text-3xl font-bold text-yellow-600">${transactionCount.toLocaleString('en-US')} <span class="text-base font-medium">筆</span></p>
-                    </div>
-                </div>
-            `;
-        }
-        
-        function renderCell(value, fractionDigits = 0) {
-            if (typeof value !== 'number' || isNaN(value)) {
-                return `<td class="border px-2 py-2 text-right">-</td>`;
-            }
-            return `<td class="border px-2 py-2 text-right">${value.toLocaleString('en-US', {maximumFractionDigits: fractionDigits, minimumFractionDigits: fractionDigits})}</td>`;
-        }
-        
-        function renderHousePriceBandAnalysis(data) {
-            const container = document.getElementById('house-price-band-content');
-            const missing = [];
-            const priceCol = columnNames.housePrice || columnNames.totalPrice;
-            if (!columnNames.room) missing.push("'房'");
-            if (!columnNames.bathroom) missing.push("'衛'");
-            if (!priceCol) missing.push("'房屋總價(萬)' 或 '產權總價(萬)'");
-
-            if(missing.length > 0) {
-                container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少必要的欄位 (${missing.join(', ')})，無法計算總價帶分析。</p>`;
-                return;
-            }
-
-            const groupedData = data.reduce((acc, row) => {
-                const rooms = safeParseInt(row[columnNames.room]);
-                const baths = safeParseInt(row[columnNames.bathroom]);
-                const key = `${rooms}房-${baths}衛`;
-                
-                if (!acc[key]) {
-                    acc[key] = { prices: [], rooms, baths };
-                }
-                const housePrice = safeParseFloat(columnNames.housePrice ? row[columnNames.housePrice] : (safeParseFloat(row[priceCol]) - safeParseFloat(row[columnNames.parkingPrice])));
-                if (isFinite(housePrice)) {
-                    acc[key].prices.push(housePrice);
-                }
-                return acc;
-            }, {});
-
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
-                    <tr>
-                        <th class="px-2 py-3 border">房間數</th>
-                        <th class="px-2 py-3 border">衛浴數</th>
-                        <th class="px-2 py-3 border">筆數</th>
-                        <th class="px-2 py-3 border">平均房屋總價</th>
-                        <th class="px-2 py-3 border">最低房屋總價</th>
-                        <th class="px-2 py-3 border">1/4分房屋總價</th>
-                        <th class="px-2 py-3 border">中位數房屋總價</th>
-                        <th class="px-2 py-3 border">3/4分房屋總價</th>
-                         <th class="px-2 py-3 border">最高房屋總價</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-            
-            const sortedKeys = Object.keys(groupedData).sort((a, b) => {
-                const [aRooms, aBaths] = a.split('-').map(s => parseInt(s.replace(/[^0-9]/g, ''), 10));
-                const [bRooms, bBaths] = b.split('-').map(s => parseInt(s.replace(/[^0-9]/g, ''), 10));
-                if (aRooms !== bRooms) return aRooms - bRooms;
-                return aBaths - bBaths;
-            });
-
-            sortedKeys.forEach(key => {
-                const group = groupedData[key];
-                if (group.prices.length === 0) return;
-                const stats = calculateQuartiles(group.prices);
-                tableHTML += `<tr class="bg-white border-b hover:bg-gray-50">
-                    <td class="border px-2 py-2 text-center">${group.rooms}</td>
-                    <td class="border px-2 py-2 text-center">${group.baths}</td>
-                    <td class="border px-2 py-2 text-right">${group.prices.length}</td>
-                    ${renderCell(stats.avg, 2)}
-                    ${renderCell(stats.min, 2)}
-                    ${renderCell(stats.q1, 2)}
-                    ${renderCell(stats.median, 2)}
-                    ${renderCell(stats.q3, 2)}
-                    ${renderCell(stats.max, 2)}
-                </tr>`;
-            });
-
-
-            tableHTML += `</tbody></table></div>`;
-            container.innerHTML = tableHTML;
-        }
-        
-        function renderUnitPriceAnalysis(data) {
-            const container = document.getElementById('unit-price-content');
-            const missing = [];
-            const priceCol = columnNames.housePrice || columnNames.totalPrice;
-             if (!priceCol) missing.push("'房屋總價(萬)' 或 '產權總價(萬)'");
-            if (!columnNames.area) missing.push("'房屋坪數(坪)'");
-            if (!columnNames.buildingName) missing.push("'建案名稱'");
-
-            if(missing.length > 0) {
-                container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少必要的欄位 (${missing.join(', ')})，無法計算房屋單價分析。</p>`;
-                return;
-            }
-
-            const unitPrices = data.map(row => {
-                 const housePrice = safeParseFloat(columnNames.housePrice ? row[columnNames.housePrice] : (safeParseFloat(row[priceCol]) - safeParseFloat(row[columnNames.parkingPrice])));
-                 const area = safeParseFloat(row[columnNames.area]);
-                 if (area === 0) return null;
-                 return { price: housePrice / area, name: row[columnNames.buildingName] };
-            }).filter(item => item !== null && isFinite(item.price));
-            
-            if(unitPrices.length === 0) {
-                container.innerHTML = `<p class="text-gray-500 text-center">沒有可用於單價分析的有效資料。</p>`;
-                return;
-            }
-
-            const priceValues = unitPrices.map(up => up.price);
-            const stats = calculateQuartiles(priceValues);
-            
-            const minProject = unitPrices.find(up => up.price === stats.min);
-            const maxProject = unitPrices.find(up => up.price === stats.max);
-
-            // Price distribution
-            const maxPriceVal = Math.ceil(stats.max / 5) * 5; // Round up to nearest 5
-            const buckets = {};
-            for (let i = 0; i <= maxPriceVal; i += 5) {
-                buckets[`${i}-${i+5}`] = 0;
-            }
-            priceValues.forEach(p => {
-                const bucketIndex = Math.floor(p / 5) * 5;
-                const bucketName = `${bucketIndex}-${bucketIndex+5}`;
-                if (buckets[bucketName] !== undefined) {
-                    buckets[bucketName]++;
-                }
-            });
-
-            let statsTable = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">單價統計資料</h3>
-                        <table class="w-full text-sm text-left text-gray-500">
-                            <tbody>
-                                <tr class="border-b"><th class="py-2 px-4 bg-gray-50 font-medium">統計項目</th><th class="py-2 px-4 bg-gray-50 font-medium text-right">數值(萬元/坪)</th></tr>
-                                <tr class="border-b"><td class="py-2 px-4">平均單價</td>${renderCell(stats.avg, 2)}</tr>
-                                <tr class="border-b"><td class="py-2 px-4">最低單價</td>${renderCell(stats.min, 2)}</tr>
-                                <tr class="border-b"><td class="py-2 px-4">1/4分位數單價</td>${renderCell(stats.q1, 2)}</tr>
-                                <tr class="border-b"><td class="py-2 px-4">中位數單價</td>${renderCell(stats.median, 2)}</tr>
-                                <tr class="border-b"><td class="py-2 px-4">3/4分位數單價</td>${renderCell(stats.q3, 2)}</tr>
-                                <tr><td class="py-2 px-4">最高單價</td>${renderCell(stats.max, 2)}</tr>
-                            </tbody>
-                        </table>
-                        <div class="mt-6">
-                            <h3 class="text-xl font-semibold mb-2 text-gray-700">極值建案資訊</h3>
-                            <div class="space-y-2">
-                                <p><strong>最低房屋單價:</strong> ${stats.min.toFixed(2)} 萬元/坪 (建案名稱: ${minProject ? minProject.name : 'N/A'})</p>
-                                <p><strong>最高房屋單價:</strong> ${stats.max.toFixed(2)} 萬元/坪 (建案名稱: ${maxProject ? maxProject.name : 'N/A'})</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">房屋單價分布 (5萬為級距)</h3>
-                        <table class="w-full text-sm text-left text-gray-500">
-                             <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                                <tr><th class="py-2 px-4">價格區間</th><th class="py-2 px-4 text-right">件數</th><th class="py-2 px-4 text-right">比例</th></tr>
-                            </thead>
-                            <tbody>`;
-            Object.keys(buckets).forEach(bucket => {
-                 if (buckets[bucket] > 0) {
-                     statsTable += `<tr class="border-b">
-                        <td class="py-2 px-4">${bucket}</td>
-                        <td class="py-2 px-4 text-right">${buckets[bucket]}</td>
-                        <td class="py-2 px-4 text-right">${((buckets[bucket] / priceValues.length) * 100).toFixed(2)}%</td>
-                     </tr>`;
-                 }
-            });
-            statsTable += `</tbody></table></div></div>`;
-            container.innerHTML = statsTable;
-        }
-
-        function renderParkingPriceAnalysis(data) {
-             const container = document.getElementById('parking-price-content');
-            const missing = [];
-            if (!columnNames.parkingPrice) missing.push("'車位總價(萬)'");
-            if (!columnNames.parkingCount) missing.push("'車位數'");
-            if (!columnNames.parkingType) missing.push("'車位類型'");
-            
-            if(missing.length > 0) {
-                container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少必要的欄位 (${missing.join(', ')})，無法計算車位單價分析。</p>`;
-                return;
-            }
-
-            const withParking = data.filter(row => safeParseInt(row[columnNames.parkingCount]) > 0);
-            const withoutParking = data.length - withParking.length;
-            const total = data.length;
-
-            let tableHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">房車配比</h3>
-                        <table class="w-full text-sm text-left text-gray-500">
-                            <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                                <tr><th class="py-2 px-4">配置類型</th><th class="py-2 px-4 text-right">交易筆數</th><th class="py-2 px-4 text-right">佔比</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr class="border-b"><td class="py-2 px-4">有搭車位</td><td class="py-2 px-4 text-right">${withParking.length}</td><td class="py-2 px-4 text-right">${total > 0 ? ((withParking.length / total) * 100).toFixed(2) : 0}%</td></tr>
-                                <tr class="border-b"><td class="py-2 px-4">沒搭車位</td><td class="py-2 px-4 text-right">${withoutParking}</td><td class="py-2 px-4 text-right">${total > 0 ? ((withoutParking / total) * 100).toFixed(2) : 0}%</td></tr>
-                                <tr class="font-bold bg-gray-50"><td class="py-2 px-4">總計</td><td class="py-2 px-4 text-right">${total}</td><td class="py-2 px-4 text-right">100.00%</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-semibold mb-2 text-gray-700">各類型車位平均單價</h3>`;
-            
-            const parkingByType = withParking.reduce((acc, row) => {
-                const type = row[columnNames.parkingType] || '未知';
-                if (!acc[type]) {
-                    acc[type] = { totalValue: 0, totalCount: 0, transactionCount: 0 };
-                }
-                acc[type].totalValue += safeParseFloat(row[columnNames.parkingPrice]);
-                acc[type].totalCount += safeParseInt(row[columnNames.parkingCount]);
-                acc[type].transactionCount++;
-                return acc;
-            }, {});
-
-            if(Object.keys(parkingByType).length > 0) {
-                tableHTML += `<table class="w-full text-sm text-left text-gray-500">
-                                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                                    <tr><th class="py-2 px-4">車位類型</th><th class="py-2 px-4 text-right">交易筆數</th><th class="py-2 px-4 text-right">車位平均單價</th></tr>
-                                </thead>
-                                <tbody>`;
-                Object.keys(parkingByType).forEach(type => {
-                    const d = parkingByType[type];
-                    const avgPrice = d.totalCount > 0 ? d.totalValue / d.totalCount : 0;
-                    tableHTML += `<tr class="border-b"><td class="py-2 px-4">${type}</td><td class="py-2 px-4 text-right">${d.transactionCount}</td>${renderCell(avgPrice, 2)}</tr>`;
-                });
-                tableHTML += `</tbody></table>`;
-            } else {
-                tableHTML += `<p class="text-gray-500 text-center mt-4">沒有可分析的車位資料。</p>`;
-            }
-            
-            tableHTML += `</div></div>`;
-            container.innerHTML = tableHTML;
-        }
-
-        const renderTimeBasedHeader = () => `
-            <tr>
-                <th rowspan="2" class="px-2 py-3 border">期間</th>
-                <th colspan="3" class="px-2 py-3 border text-center">2房去化</th>
-                <th colspan="3" class="px-2 py-3 border text-center">3房去化</th>
-                <th colspan="3" class="px-2 py-3 border text-center">總計</th>
-            </tr>
-            <tr>
-                <th class="px-2 py-3 border">資料筆數</th><th class="px-2 py-3 border">產權總價(萬)</th><th class="px-2 py-3 border">房屋坪數(坪)</th>
-                <th class="px-2 py-3 border">資料筆數</th><th class="px-2 py-3 border">產權總價(萬)</th><th class="px-2 py-3 border">房屋坪數(坪)</th>
-                <th class="px-2 py-3 border">資料筆數</th><th class="px-2 py-3 border">產權總價(萬)</th><th class="px-2 py-3 border">房屋坪數(坪)</th>
-            </tr>`;
-
-        function renderAnnualSales(data) {
-            const container = document.getElementById('annual-sales-content');
-            const missing = ['date', 'room', 'totalPrice', 'area'].filter(key => !columnNames[key]);
-            if (missing.length > 0) {
-               container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少欄位 (${missing.join(', ')})，無法計算年度去化。</p>`;
-               return;
-            }
-
-            const annualData = {};
-            data.forEach(row => {
-                const date = parseDateString(row[columnNames.date]);
-                if (!date) return;
-                const year = date.getFullYear();
-                if (!annualData[year]) {
-                    annualData[year] = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-                }
-
-                const roomCount = safeParseInt(row[columnNames.room]);
-                const price = safeParseFloat(row[columnNames.totalPrice]);
-                const area = safeParseFloat(row[columnNames.area]);
-
-                annualData[year]['總計'].count++;
-                annualData[year]['總計'].price += price;
-                annualData[year]['總計'].area += area;
-
-                if (roomCount === 2) {
-                    annualData[year]['2房'].count++;
-                    annualData[year]['2房'].price += price;
-                    annualData[year]['2房'].area += area;
-                } else if (roomCount === 3) {
-                    annualData[year]['3房'].count++;
-                    annualData[year]['3房'].price += price;
-                    annualData[year]['3房'].area += area;
-                }
-            });
-
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100">${renderTimeBasedHeader()}</thead><tbody>`;
-            const total = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-            
-            Object.keys(annualData).sort().forEach(year => {
-                tableHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="border px-2 py-2 font-medium">${year}年</td>`;
-                ['2房', '3房', '總計'].forEach(type => {
-                    const d = annualData[year][type];
-                    tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-                    total[type].count += d.count;
-                    total[type].price += d.price;
-                    total[type].area += d.area;
-                });
-                tableHTML += `</tr>`;
-            });
-            
-            tableHTML += `<tr class="bg-gray-100 font-bold"><td class="border px-2 py-2">總計</td>`;
-            ['2房', '3房', '總計'].forEach(type => {
-                const d = total[type];
-                tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-            });
-            tableHTML += `</tr></tbody></table></div>`;
-            container.innerHTML = tableHTML;
-        }
-
-        function renderQuarterlySales(data) {
-            const container = document.getElementById('quarterly-sales-content');
-            const missing = ['date', 'room', 'totalPrice', 'area'].filter(key => !columnNames[key]);
-            if (missing.length > 0) {
-               container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少欄位 (${missing.join(', ')})，無法計算每季去化。</p>`;
-               return;
-            }
-
-            const quarterlyData = {};
-            data.forEach(row => {
-                const date = parseDateString(row[columnNames.date]);
-                if (!date) return;
-                const year = date.getFullYear();
-                const quarter = Math.floor(date.getMonth() / 3) + 1;
-                const key = `${year}-Q${quarter}`;
-
-                if (!quarterlyData[key]) {
-                    quarterlyData[key] = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-                }
-                const roomCount = safeParseInt(row[columnNames.room]);
-                const price = safeParseFloat(row[columnNames.totalPrice]);
-                const area = safeParseFloat(row[columnNames.area]);
-
-                quarterlyData[key]['總計'].count++;
-                quarterlyData[key]['總計'].price += price;
-                quarterlyData[key]['總計'].area += area;
-                if (roomCount === 2) {
-                    quarterlyData[key]['2房'].count++;
-                    quarterlyData[key]['2房'].price += price;
-                    quarterlyData[key]['2房'].area += area;
-                } else if (roomCount === 3) {
-                    quarterlyData[key]['3房'].count++;
-                    quarterlyData[key]['3房'].price += price;
-                    quarterlyData[key]['3房'].area += area;
-                }
-            });
-
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100">${renderTimeBasedHeader()}</thead><tbody>`;
-            const total = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-
-            Object.keys(quarterlyData).sort().forEach(key => {
-                tableHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="border px-2 py-2 font-medium">${key}</td>`;
-                ['2房', '3房', '總計'].forEach(type => {
-                    const d = quarterlyData[key][type];
-                    tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-                    total[type].count += d.count;
-                    total[type].price += d.price;
-                    total[type].area += d.area;
-                });
-                tableHTML += `</tr>`;
-            });
-            tableHTML += `<tr class="bg-gray-100 font-bold"><td class="border px-2 py-2">總計</td>`;
-            ['2房', '3房', '總計'].forEach(type => {
-                const d = total[type];
-                tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-            });
-            tableHTML += `</tr></tbody></table></div>`;
-            container.innerHTML = tableHTML;
-        }
-
-        function renderMonthlySales(data) {
-            const container = document.getElementById('monthly-sales-content');
-            const missing = ['date', 'room', 'totalPrice', 'area'].filter(key => !columnNames[key]);
-            if (missing.length > 0) {
-               container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少欄位 (${missing.join(', ')})，無法計算每月去化。</p>`;
-               return;
-            }
-
-            const monthlyData = {};
-            data.forEach(row => {
-                const date = parseDateString(row[columnNames.date]);
-                if (!date) return;
-                const year = date.getFullYear();
-                const month = date.getMonth() + 1;
-                const key = `${year}-${String(month).padStart(2, '0')}`;
-                
-                if (!monthlyData[key]) {
-                    monthlyData[key] = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-                }
-                const roomCount = safeParseInt(row[columnNames.room]);
-                const price = safeParseFloat(row[columnNames.totalPrice]);
-                const area = safeParseFloat(row[columnNames.area]);
-
-                monthlyData[key]['總計'].count++;
-                monthlyData[key]['總計'].price += price;
-                monthlyData[key]['總計'].area += area;
-
-                if (roomCount === 2) {
-                    monthlyData[key]['2房'].count++;
-                    monthlyData[key]['2房'].price += price;
-                    monthlyData[key]['2房'].area += area;
-                } else if (roomCount === 3) {
-                    monthlyData[key]['3房'].count++;
-                    monthlyData[key]['3房'].price += price;
-                    monthlyData[key]['3房'].area += area;
-                }
-            });
-            
-            let tableHTML = `<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100">${renderTimeBasedHeader()}</thead><tbody>`;
-            const total = { '2房': { count: 0, price: 0, area: 0 }, '3房': { count: 0, price: 0, area: 0 }, '總計': { count: 0, price: 0, area: 0 } };
-
-            Object.keys(monthlyData).sort().forEach(key => {
-                tableHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="border px-2 py-2 font-medium">${key}</td>`;
-                ['2房', '3房', '總計'].forEach(type => {
-                    const d = monthlyData[key][type];
-                    tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-                    total[type].count += d.count;
-                    total[type].price += d.price;
-                    total[type].area += d.area;
-                });
-                tableHTML += `</tr>`;
-            });
-            tableHTML += `<tr class="bg-gray-100 font-bold"><td class="border px-2 py-2">總計</td>`;
-            ['2房', '3房', '總計'].forEach(type => {
-                const d = total[type];
-                tableHTML += renderCell(d.count) + renderCell(d.price) + renderCell(d.area, 2);
-            });
-            tableHTML += `</tr></tbody></table></div>`;
-            container.innerHTML = tableHTML;
-        }
-        
-        function renderCaseRanking(data, sortKey = 'avgUnitPrice') {
-            caseRankingSortKey = sortKey; // Update global state
-            const container = document.getElementById('case-ranking-content');
-            const required = ['buildingName', 'area', 'totalPrice'];
-            const missing = required.filter(key => !columnNames[key]);
-            if (missing.length > 0) {
-                container.innerHTML = `<p class="text-red-500 text-center font-semibold">錯誤：缺少欄位 (${missing.join(', ')})，無法計算個案排名。</p>`;
-                return;
-            }
-            
-            const overallTotalPrice = data.reduce((sum, row) => sum + safeParseFloat(row[columnNames.totalPrice]), 0);
-
-            const projects = data.reduce((acc, row) => {
-                const name = row[columnNames.buildingName];
-                if (!name) return acc;
-                if (!acc[name]) {
-                    acc[name] = { name, areaSum: 0, priceSum: 0, count: 0, unitPrices: [], parkingPrices: [] };
-                }
-                const project = acc[name];
-                project.count++;
-                project.areaSum += safeParseFloat(row[columnNames.area]);
-                project.priceSum += safeParseFloat(row[columnNames.totalPrice]);
-
-                const housePrice = safeParseFloat(columnNames.housePrice ? row[columnNames.housePrice] : (safeParseFloat(row[columnNames.totalPrice]) - safeParseFloat(row[columnNames.parkingPrice])));
-                const area = safeParseFloat(row[columnNames.area]);
-                if (area > 0) project.unitPrices.push(housePrice / area);
-
-                const pCount = safeParseInt(row[columnNames.parkingCount]);
-                if (pCount > 0 && columnNames.parkingPrice) {
-                    project.parkingPrices.push(safeParseFloat(row[columnNames.parkingPrice]) / pCount);
-                }
-                return acc;
-            }, {});
-            
-            const grandTotal = {
-                areaSum: data.reduce((sum, row) => sum + safeParseFloat(row[columnNames.area]), 0),
-                count: data.length,
-                priceSum: overallTotalPrice,
-            };
-
-            const processedProjects = Object.values(projects).map(p => {
-                const unitPriceStats = calculateQuartiles(p.unitPrices);
-                const parkingPriceStats = calculateQuartiles(p.parkingPrices);
-                return {
-                    ...p,
-                    avgUnitPrice: unitPriceStats.avg,
-                    minUnitPrice: unitPriceStats.min,
-                    maxUnitPrice: unitPriceStats.max,
-                    medianUnitPrice: unitPriceStats.median,
-                    avgParkingPrice: parkingPriceStats.avg,
-                    marketShare: overallTotalPrice > 0 ? (p.priceSum / overallTotalPrice) * 100 : 0,
-                };
-            });
-            
-            processedProjects.sort((a, b) => b[sortKey] - a[sortKey]);
-            const rankedProjects = processedProjects.slice(0, 15);
-            
-            const sortButtons = `
-                <div class="flex items-center space-x-2 mb-4">
-                    <span class="text-sm font-medium">排序依據:</span>
-                    <button data-sort-key="avgUnitPrice" class="sort-button ${sortKey === 'avgUnitPrice' ? 'active' : ''}">平均單價</button>
-                    <button data-sort-key="priceSum" class="sort-button ${sortKey === 'priceSum' ? 'active' : ''}">產權總價</button>
-                    <button data-sort-key="areaSum" class="sort-button ${sortKey === 'areaSum' ? 'active' : ''}">房屋坪數</button>
-                    <button data-sort-key="count" class="sort-button ${sortKey === 'count' ? 'active' : ''}">資料筆數</button>
-                </div>
-            `;
-
-             let tableHTML = `${sortButtons}<div class="overflow-x-auto"><table class="w-full text-sm text-left text-gray-500">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-100">
-                    <tr>
-                        <th class="px-2 py-3 border">排名</th>
-                        <th class="px-2 py-3 border">建案名稱</th>
-                        <th class="px-2 py-3 border">房屋坪數(坪)總和</th>
-                        <th class="px-2 py-3 border">資料筆數</th>
-                        <th class="px-2 py-3 border">產權總價(萬)總和</th>
-                        <th class="px-2 py-3 border">市場佔比(%)</th>
-                        <th class="px-2 py-3 border">平均單價(萬)</th>
-                        <th class="px-2 py-3 border">最低單價(萬)</th>
-                        <th class="px-2 py-3 border">最高單價(萬)</th>
-                        <th class="px-2 py-3 border">單價中位數(萬)</th>
-                        <th class="px-2 py-3 border">車位平均單價</th>
-                    </tr>
-                </thead>
-                <tbody>`;
-            
-            rankedProjects.forEach((p, index) => {
-                tableHTML += `<tr class="bg-white border-b hover:bg-gray-50">
-                    <td class="border px-2 py-2 text-center">${index + 1}</td>
-                    <td class="border px-2 py-2">${p.name}</td>
-                    ${renderCell(p.areaSum, 2)}
-                    ${renderCell(p.count)}
-                    ${renderCell(p.priceSum, 0)}
-                    ${renderCell(p.marketShare, 2)}
-                    ${renderCell(p.avgUnitPrice, 2)}
-                    ${renderCell(p.minUnitPrice, 2)}
-                    ${renderCell(p.maxUnitPrice, 2)}
-                    ${renderCell(p.medianUnitPrice, 2)}
-                    ${renderCell(p.avgParkingPrice, 2)}
-                </tr>`;
-            });
-
-            tableHTML += `</tbody><tfoot class="bg-gray-100 font-bold">
-                <tr>
-                    <td class="border px-2 py-2 text-center" colspan="2">總計 (所有篩選資料)</td>
-                    ${renderCell(grandTotal.areaSum, 2)}
-                    ${renderCell(grandTotal.count)}
-                    ${renderCell(grandTotal.priceSum, 0)}
-                    <td class="border px-2 py-2 text-center" colspan="6">-</td>
-                </tr>
-            </tfoot></table></div>`;
-            container.innerHTML = tableHTML;
-
-            // Add event listeners to new sort buttons
-            container.querySelectorAll('.sort-button').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    renderCaseRanking(data, e.target.dataset.sortKey);
                 });
             });
-        }
 
-
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-            document.getElementById(`${tabId}-content`).classList.add('active');
-            document.querySelector(`[data-tab='${tabId}']`).classList.add('active');
-        }
-        
-        // --- Event Listeners ---
-        csvFileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-        [districtFilter, startDateInput, endDateInput].forEach(el => {
-            el.addEventListener('change', applyFilters);
-        });
-        buildingNameSearch.addEventListener('input', applyFilters);
-        searchModeToggle.addEventListener('change', () => {
-            searchModeLabel.textContent = searchModeToggle.checked ? '精準' : '模糊';
-            applyFilters();
-        });
-        generateReportBtn.addEventListener('click', generateAnalysisReport);
-
-        tabContainer.addEventListener('click', (e) => {
-            if (e.target.matches('.tab-button')) {
-                switchTab(e.target.dataset.tab);
+            if (detectedItems.length === 0) {
+                showCustomModal('沒有偵測到內容', '未偵測到任何有效文字內容！請檢查您的輸入。');
+                return;
             }
-        });
-        
-        buildingTypeButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            buildingTypeMenu.style.display = buildingTypeMenu.style.display === 'block' ? 'none' : 'block';
-        });
 
-        buildingTypeMenu.addEventListener('change', () => {
-            const allCheckboxes = document.querySelectorAll('.building-type-checkbox');
-            const checkedCheckboxes = document.querySelectorAll('.building-type-checkbox:checked');
-            document.getElementById('select-all-types').checked = allCheckboxes.length > 0 && allCheckboxes.length === checkedCheckboxes.length;
-            updateBuildingTypeButtonText();
-            applyFilters();
-        });
+            updateStats(); // 更新統計資訊
+            generateQRCodes(); // 生成 QR Codes
+        }
 
-        window.addEventListener('click', (e) => {
-            if (!buildingTypeContainer.contains(e.target)) buildingTypeMenu.style.display = 'none';
-            if (e.target == customAlert) hideAlert();
-        });
+        /**
+         * 更新統計資訊顯示
+         */
+        function updateStats() {
+            document.getElementById('stats').style.display = 'flex';
+            document.getElementById('itemCount').textContent = detectedItems.length;
+            document.getElementById('labeledCount').textContent =
+                detectedItems.filter(item => item.label).length;
+        }
 
-        async function exportReportToPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-            
-            // For CJK support, a font must be embedded. This is a placeholder.
-            // In a real application, you would load a base64 encoded font file.
-            // For now, we will use a standard font and it might not render CJK characters correctly.
-            doc.setFont('Helvetica'); 
+        /**
+         * 根據偵測到的內容生成 QR Codes 並顯示在頁面上
+         */
+        function generateQRCodes() {
+            const grid = document.getElementById('qrGrid');
+            grid.innerHTML = ''; // 清空現有內容
+            qrCodes = []; // 重置 QR Code 陣列
 
-            const tabOrder = ['core-metrics', 'case-ranking', 'house-price-band', 'unit-price', 'parking-price', 'annual-sales', 'quarterly-sales', 'monthly-sales'];
-            const visibleTabs = tabOrder.filter(tabId => document.querySelector(`[data-tab='${tabId}']`).classList.contains('visible'));
-            const originalActiveTab = document.querySelector('.tab-button.active')?.dataset.tab;
+            detectedItems.forEach((item, index) => {
+                const qrItem = document.createElement('div');
+                qrItem.className = 'qr-item';
 
-            showLoader(true, '正在產生 PDF...');
-            
-            for (let i = 0; i < visibleTabs.length; i++) {
-                const tabId = visibleTabs[i];
-                if (i > 0) doc.addPage();
-                
-                const element = document.getElementById(`${tabId}-content`);
-                const title = document.querySelector(`[data-tab='${tabId}']`).textContent;
-                
-                doc.setFontSize(18);
-                doc.text(title, 14, 20);
+                // 如果沒有自訂標籤，則使用預設標籤「項目 X」
+                const displayLabel = item.label || `項目 ${index + 1}`;
 
-                const tables = element.querySelectorAll('table');
-                let startY = 30; // Initial startY for the content on the page
+                qrItem.innerHTML = `
+                    <div class="qr-number">#${index + 1}</div>
+                    <div class="qr-label">${escapeHtml(displayLabel)}</div>
+                    <div class="qr-container" id="qr-container-${index}"></div>
+                    <div class="qr-content-display">${escapeHtml(item.content)}</div>
+                `;
 
-                if (tables.length > 0) { // For tabs with tables
-                    tables.forEach((table) => {
-                         const subHeader = table.closest('div').querySelector('h3');
-                         if(subHeader) {
-                            doc.setFontSize(12);
-                            doc.text(subHeader.textContent, 14, startY - 4);
-                         }
+                grid.appendChild(qrItem);
 
-                        doc.autoTable({
-                            html: table,
-                            startY: startY,
-                            theme: 'grid',
-                            styles: { font: 'Helvetica', fontStyle: 'normal' },
-                            headStyles: { fillColor: [22, 160, 133] },
-                        });
-                        startY = doc.autoTable.previous.finalY + 10;
+                // 生成 QR Code
+                const qrCodeElement = document.getElementById(`qr-container-${index}`);
+                try {
+                    const qrCode = new QRCode(qrCodeElement, {
+                        text: item.content, // Use item.content for QR code data
+                        width: 200,
+                        height: 200,
+                        colorDark: "#000000",
+                        colorLight: "#ffffff",
+                        correctLevel: QRCode.CorrectLevel.H // 高容錯率
                     });
-                } else { // For tabs like core-metrics
-                     await new Promise(resolve => setTimeout(resolve, 100));
-                    const canvas = await html2canvas(element, { scale: 3, useCORS: true });
-                    const imgData = canvas.toDataURL('image/png');
-                    const imgProps = doc.getImageProperties(imgData);
-                    const pdfWidth = doc.internal.pageSize.getWidth();
-                    const imgWidth = pdfWidth - 28;
-                    const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
-                    if(doc.internal.pageSize.getHeight() < 30 + imgHeight) {
-                        doc.addPage();
-                    }
-                    doc.addImage(imgData, 'PNG', 14, 30, imgWidth, imgHeight);
+                    qrCodes.push({
+                        qrCode,
+                        label: displayLabel,
+                        content: item.content, // Store content
+                        hasCustomLabel: !!item.label
+                    });
+                    console.log(`成功生成 QR Code for 內容 (第${index + 1}個): '${item.content.substring(0, 50)}...'`); // Debugging log
+                } catch (e) {
+                    console.error(`生成 QR Code 失敗 for 內容 (第${index + 1}個): ${item.content}`, e); // Enhanced error log
+                    qrCodeElement.innerHTML = `<p style="color: red; font-size: 0.9rem;">生成失敗</p>`;
                 }
+            });
+            document.getElementById('previewSection').style.display = 'block';
+        }
+
+        /**
+         * 將字串中的特殊 HTML 字元進行轉義
+         * @param {string} str - 原始字串
+         * @returns {string} 轉義後的字串
+         */
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        /**
+         * 將所有生成的 QR Codes 打包成 ZIP 檔案並下載
+         */
+        async function downloadAllAsZip() {
+            if (qrCodes.length === 0) {
+                showCustomModal('操作提示', '請先生成 QR Code！');
+                return;
             }
-            
-            doc.save('房地產分析報告.pdf');
-            if(originalActiveTab) switchTab(originalActiveTab);
-            showLoader(false);
+
+            // 顯示進度模態框
+            const progressModal = document.getElementById('progressModal');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            progressModal.classList.add('active');
+            progressFill.style.width = '0%';
+            progressFill.textContent = '0%';
+            progressText.textContent = '準備中...';
+
+            try {
+                const zip = new JSZip();
+                const folder = zip.folder("QR-Codes");
+                const fileNames = new Map(); // 用於追蹤檔案名稱和處理重複
+
+                for (let i = 0; i < qrCodes.length; i++) {
+                    const item = qrCodes[i];
+                    const canvas = document.querySelector(`#qr-container-${i} canvas`);
+
+                    if (canvas) {
+                        // 清理標籤，移除不允許的檔案名稱字元
+                        // 將所有非法檔案名稱字元替換為底線
+                        let fileName = item.hasCustomLabel ?
+                            item.label.replace(/[\\/:*?"<>|]/g, '_').trim() :
+                            `QR-${String(i + 1).padStart(3, '0')}`;
+
+                        // 如果清理後的檔案名稱為空，則使用預設名稱
+                        if (!fileName) {
+                            // 如果自訂標籤被清理後變空，嘗試使用內容的前幾個字元作為檔案名稱
+                            fileName = item.content.substring(0, 20).replace(/[\\/:*?"<>|]/g, '_').trim() || `QR-${String(i + 1).padStart(3, '0')}`;
+                            if (!fileName) { // 如果內容也無法生成有效名稱
+                                fileName = `QR-${String(i + 1).padStart(3, '0')}`;
+                            }
+                        }
+
+                        // 處理重複的檔案名稱，添加數字後綴
+                        let originalFileName = fileName;
+                        let count = 1;
+                        while (fileNames.has(fileName)) {
+                            fileName = `${originalFileName}_${++count}`;
+                        }
+                        fileNames.set(fileName, true); // 標記為已使用
+
+                        const base64Data = canvas.toDataURL('image/png').split(',')[1];
+                        folder.file(`${fileName}.png`, base64Data, { base64: true });
+
+                        // 更新進度條和文字
+                        const progress = Math.round((i + 1) / qrCodes.length * 100);
+                        progressFill.style.width = `${progress}%`;
+                        progressFill.textContent = `${progress}%`;
+                        progressText.textContent = `處理中 ${i + 1} / ${qrCodes.length}`;
+
+                        // 小幅延遲，讓進度條動畫更流暢
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                }
+
+                // 添加說明文件
+                const readmeContent = `QR Code 批次生成結果\n=======================\n\n生成時間：${new Date().toLocaleString('zh-TW')}\n總數量：${qrCodes.length} 個 QR Code\n\n詳細清單：\n${qrCodes.map((item, i) => `${i + 1}. ${item.label}   內容：${item.content}`).join('\n')}\n\n說明：\n- 每個 PNG 檔案都是一個 QR Code 圖片\n- 掃描 QR Code 即可讀取對應的文字內容\n- 檔案名稱對應上述清單中的標籤（若有）或自動生成名稱`;
+
+                folder.file("README.txt", readmeContent);
+
+                // 生成並下載 ZIP
+                progressText.textContent = '正在壓縮檔案...';
+                const content = await zip.generateAsync({ type: "blob" }, function update(metadata) {
+                    // 更新 ZIP 壓縮進度
+                    const zipProgress = Math.round(metadata.percent);
+                    progressFill.style.width = `${zipProgress}%`;
+                    progressFill.textContent = `${zipProgress}%`;
+                    progressText.textContent = `壓縮中: ${zipProgress}%`;
+                });
+
+                saveAs(content, `QR-Codes-${new Date().getTime()}.zip`);
+
+                // 移除進度提示並顯示成功訊息
+                setTimeout(() => {
+                    progressModal.classList.remove('active');
+                    showCustomModal('下載完成', `成功下載 ${qrCodes.length} 個 QR Code！\n\n檔案已儲存為 ZIP 格式。`);
+                }, 500);
+
+            } catch (error) {
+                console.error('生成 ZIP 時發生錯誤:', error);
+                progressModal.classList.remove('active');
+                showCustomModal('錯誤', '生成 ZIP 檔案時發生錯誤，請重試。');
+            }
         }
 
-        exportPdfBtn.addEventListener('click', exportReportToPDF);
-
-        function updateBuildingTypeButtonText() {
-            const selectedCount = document.querySelectorAll('.building-type-checkbox:checked').length;
-            buildingTypeButtonText.textContent = selectedCount === 0 ? '所有類型' : `已選 ${selectedCount} 項`;
+        /**
+         * 重新生成所有 QR Codes (使用已偵測的內容)
+         */
+        function regenerateAll() {
+            if (detectedItems.length > 0) {
+                generateQRCodes();
+            } else {
+                showCustomModal('操作提示', '沒有內容可以重新生成，請先偵測內容。');
+            }
         }
+
+        /**
+         * 清除所有內容，包括輸入框、預覽區和統計資訊
+         */
+        function clearAll() {
+            showCustomModal('確認清除', '確定要清除所有內容嗎？', () => {
+                document.getElementById('urlInput').value = '';
+                document.getElementById('qrGrid').innerHTML = '';
+                document.getElementById('previewSection').style.display = 'none';
+                document.getElementById('stats').style.display = 'none';
+                detectedItems = [];
+                qrCodes = [];
+            }, true); // true 表示這是一個確認框
+        }
+
+        // 支援 Ctrl + Enter 鍵快速生成
+        document.getElementById('urlInput').addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                detectAndGenerateQR();
+            }
+        });
     </script>
 </body>
 </html>
