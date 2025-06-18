@@ -381,23 +381,21 @@
             <h3>使用說明：</h3>
             <ul>
                 <li>在下方文字區域貼上您要轉換的文字內容</li>
-                <li>系統會自動偵測每一行或「標籤: 內容」格式的項目</li>
+                <li>系統會自動偵測符合「標籤: 網址」格式的項目</li>
                 <li>每個偵測到的項目會自動編號並生成對應的 QR Code</li>
-                <li>可以為內容加上標籤，格式：<strong>標籤名稱: 您的內容</strong></li>
+                <li>可以為內容加上標籤，格式：<strong>標籤名稱: 您的網址</strong></li>
                 <li>支援批次下載所有 QR Code 為 ZIP 檔案</li>
             </ul>
         </div>
 
         <div class="input-section">
             <label class="input-label" for="urlInput">貼上您要轉換的文字內容：</label>
-            <textarea id="urlInput" placeholder="在這裡貼上您的文字內容，系統會將每一行有效文字轉換為 QR Code...範例：&#10;專案網站: https://example.com&#10;文件連結: https://docs.example.com/guide&#10;戶號: 09F-A01&#10;產品編號: XYZ-789&#10;這是一段任意文字內容。&#10;您也可以直接貼上多行文字內容..."></textarea>
+            <textarea id="urlInput" placeholder="在這裡貼上您的文字內容，系統會將符合格式的項目轉換為 QR Code...範例：&#10;** 專案網站: https://example.com/project&#10;** 文件連結: https://docs.example.com/guide&#10;** 戶號09F-A01: https://sharepoint.com/unit09FA01_link&#10;** 戶號10F-B02: https://sharepoint.com/unit10FB02_link&#10;您也可以在同一行使用 ' ** ' 分隔多個項目。非 '標籤: 網址' 格式的內容將會被忽略。"></textarea>
             <div class="example-text">
                 支援格式：<br>
-                • 標籤名稱: 您的內容<br>
-                • 直接貼上任意文字行<br>
-                • 混合文字中的有效內容也會被偵測
-                <br>
-                **注意：程式現在會將「 ** ** 」作為項目之間的分隔符號。
+                • **標籤名稱: 網址** (例如：`** 戶號: https://example.com` 或 `** 09F-A01: https://sharepoint.com/link`)<br>
+                • 系統會自動識別所有符合 **`[任意文字]: [有效的網址]`** 格式的項目。<br>
+                • **重要**：非 `標籤: 網址` 格式的內容將會被忽略。您可以在同一行使用 ` ** ` 分隔多個項目，每個 `**` 後面通常是一個新項目的開始。
             </div>
             <div class="button-group">
                 <button class="btn btn-primary" onclick="detectAndGenerateQR()">偵測內容並生成 QR Code</button>
@@ -449,8 +447,13 @@
         let detectedItems = [];
         let qrCodes = [];
 
-        // 偵測標籤格式（標籤: 內容 或 標籤：內容）- 支援中英文冒號，且內容可以是任何字元
-        const labeledContentRegex = /^([^:：]+?)[:：]\s*(.+)$/;
+        // 全新的正則表達式，用於在整個輸入字串中查找「標籤: 網址」模式
+        // 它會查找：
+        // (?:^|\s*\*+\s*)：非捕獲組，匹配字串開頭，或前面有任意空格和至少一個星號（處理 `**` 分隔符或開頭的 `**`）
+        // ([^:：\n]+?)：捕獲組1，非貪婪匹配標籤內容（非冒號、非換行符）
+        // [:：]\s*：匹配中文或英文冒號，後面跟隨任意空格
+        // ((?:https?|ftp):\/\/[^\s]+)：捕獲組2，匹配網址（http/https/ftp 開頭，直到遇到空格或換行符）
+        const itemExtractionRegex = /(?:^|\s*\*+\s*)([^:：\n]+?)[:：]\s*((?:https?|ftp):\/\/[^\s]+)/g;
 
         /**
          * 顯示自訂訊息框
@@ -498,39 +501,38 @@
             }
 
             detectedItems = []; // 重置 detectedItems
-            // 首先將輸入內容按 " ** " 分割，處理用戶提供的特殊分隔符
-            const rawSegments = input.split(' ** ').map(segment => segment.trim());
+            
+            // 使用 matchAll 查找所有符合「標籤: 網址」模式的項目
+            // itemExtractionRegex 現在捕獲的是 (?:^|\s*\*+\s*) ([^:：\n]+?) [:：]\s* ((?:https?|ftp):\/\/[^\s]+)
+            // match[1] 是前綴（如果有的話，例如 ' ** '）
+            // match[2] 是標籤內容
+            // match[3] 是網址
+            const matches = input.matchAll(itemExtractionRegex);
 
-            rawSegments.forEach(rawSegment => {
-                if (!rawSegment) {
-                    return; // 跳過空片段
-                }
+            for (const match of matches) {
+                // 修正：match[1] 是標籤，match[2] 是內容 (網址)
+                let label = match[1].trim(); // 捕獲組 1 是實際的標籤內容
+                const content = match[2].trim(); // 捕獲組 2 是網址
 
-                // 處理每個片段中的多行內容
-                const linesInSegment = rawSegment.split('\n').map(line => line.trim()).filter(line => line !== '');
+                // 再次清理標籤，確保移除了所有可能的多餘星號和空格
+                // 例如 " ** 00 客變階段" 應該變成 "00 客變階段"
+                // 即使 itemExtractionRegex 已經處理了開頭的 **，這一步可以作為額外的保險。
+                label = label.replace(/^\s*\**\s*|\s*\**\s*$/g, '').trim();
 
-                linesInSegment.forEach(line => {
-                    // 嘗試匹配標籤格式
-                    const match = line.match(labeledContentRegex);
-                    if (match) {
-                        const label = match[1].trim();
-                        const content = match[2].trim();
-                        if (content) { // 確保內容不為空
-                            detectedItems.push({ content: content, label: label });
-                            console.log(`偵測到帶標籤項目: 標籤='${label}', 內容='${content}'`); // Debugging log
-                        }
-                    } else {
-                        // 如果沒有匹配到標籤格式，則將整行作為內容
-                        if (line) { // 確保內容不為空
-                            detectedItems.push({ content: line, label: null });
-                            console.log(`偵測到無標籤項目: 內容='${line}'`); // Debugging log
-                        }
+                // 確保內容是有效的 URL
+                try {
+                    new URL(content); // 嘗試建立 URL 物件，驗證網址有效性
+                    if (label && content) { // 確保標籤和內容都不為空
+                        detectedItems.push({ content: content, label: label });
+                        console.log(`偵測到帶標籤項目: 標籤='${label}', 內容='${content}'`); // Debugging log
                     }
-                });
-            });
+                } catch (e) {
+                    console.warn(`跳過無效的網址格式或內容: 標籤='${label}', 內容='${content}' (URL驗證失敗)`, e);
+                }
+            }
 
             if (detectedItems.length === 0) {
-                showCustomModal('沒有偵測到內容', '未偵測到任何有效文字內容！請檢查您的輸入。');
+                showCustomModal('沒有偵測到內容', '未偵測到任何有效的「標籤: 網址」格式項目！請檢查您的輸入。請確保網址以 http://, https://, 或 ftp:// 開頭，並且每個項目都以「標籤: 網址」格式呈現。其他文字將會被忽略。');
                 return;
             }
 
@@ -589,7 +591,7 @@
                         content: item.content, // Store content
                         hasCustomLabel: !!item.label
                     });
-                    console.log(`成功生成 QR Code for 內容 (第${index + 1}個): '${item.content.substring(0, 50)}...'`); // Debugging log
+                    console.log(`成功生成 QR Code for 內容 (第${index + 1}個): '${item.content.substring(0, Math.min(item.content.length, 50))}...'`); // Debugging log
                 } catch (e) {
                     console.error(`生成 QR Code 失敗 for 內容 (第${index + 1}個): ${item.content}`, e); // Enhanced error log
                     qrCodeElement.innerHTML = `<p style="color: red; font-size: 0.9rem;">生成失敗</p>`;
@@ -646,7 +648,7 @@
                         // 如果清理後的檔案名稱為空，則使用預設名稱
                         if (!fileName) {
                             // 如果自訂標籤被清理後變空，嘗試使用內容的前幾個字元作為檔案名稱
-                            fileName = item.content.substring(0, 20).replace(/[\\/:*?"<>|]/g, '_').trim() || `QR-${String(i + 1).padStart(3, '0')}`;
+                            fileName = item.content.substring(0, Math.min(item.content.length, 20)).replace(/[\\/:*?"<>|]/g, '_').trim() || `QR-${String(i + 1).padStart(3, '0')}`;
                             if (!fileName) { // 如果內容也無法生成有效名稱
                                 fileName = `QR-${String(i + 1).padStart(3, '0')}`;
                             }
