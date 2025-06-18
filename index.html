@@ -380,22 +380,23 @@
         <div class="instructions">
             <h3>使用說明：</h3>
             <ul>
-                <li>在下方文字區域貼上您要轉換的文字內容</li>
-                <li>系統會自動偵測符合「標籤: 網址」格式的項目</li>
-                <li>每個偵測到的項目會自動編號並生成對應的 QR Code</li>
-                <li>可以為內容加上標籤，格式：<strong>標籤名稱: 您的網址</strong></li>
-                <li>支援批次下載所有 QR Code 為 ZIP 檔案</li>
+                <li>在下方文字區域貼上您要轉換的文字內容。</li>
+                <li>系統會自動偵測符合「標籤: 網址」或「標籤,網址」格式的項目。</li>
+                <li>每個偵測到的項目會自動編號並生成對應的 QR Code。</li>
+                <li>支援兩種格式：<strong>標籤: 網址</strong> 或 <strong>標籤,網址</strong>。</li>
+                <li>支援批次下載所有 QR Code 為 ZIP 檔案。</li>
             </ul>
         </div>
 
         <div class="input-section">
             <label class="input-label" for="urlInput">貼上您要轉換的文字內容：</label>
-            <textarea id="urlInput" placeholder="在這裡貼上您的文字內容，系統會將符合格式的項目轉換為 QR Code...範例：&#10;** 專案網站: https://example.com/project&#10;** 文件連結: https://docs.example.com/guide&#10;** 戶號09F-A01: https://sharepoint.com/unit09FA01_link&#10;** 戶號10F-B02: https://sharepoint.com/unit10FB02_link&#10;您也可以在同一行使用 ' ** ' 分隔多個項目。非 '標籤: 網址' 格式的內容將會被忽略。"></textarea>
+            <textarea id="urlInput" placeholder="在這裡貼上您的文字內容...&#10;支援格式範例：&#10;** 專案網站: https://example.com/project&#10;** 文件連結: https://docs.example.com/guide&#10;或 (CSV格式):&#10;02F-A01,https://your.url.com/link1&#10;02F-A02,https://your.url.com/link2&#10;系統會自動偵測並轉換。"></textarea>
             <div class="example-text">
                 支援格式：<br>
-                • **標籤名稱: 網址** (例如：`** 戶號: https://example.com` 或 `** 09F-A01: https://sharepoint.com/link`)<br>
-                • 系統會自動識別所有符合 **`[任意文字]: [有效的網址]`** 格式的項目。<br>
-                • **重要**：非 `標籤: 網址` 格式的內容將會被忽略。您可以在同一行使用 ` ** ` 分隔多個項目，每個 `**` 後面通常是一個新項目的開始。
+                • <strong>格式1 (標籤: 網址)：</strong> `** 戶號: https://example.com`<br>
+                • <strong>格式2 (標籤,網址)：</strong> `02F-A01,https://sharepoint.com/link`<br>
+                • 系統會自動識別所有符合 **`[文字]:[網址]`** 或 **`[文字],[網址]`** 格式的項目。<br>
+                • **重要**：不符合上述格式的內容將會被忽略。網址必須以 `http://`, `https://`, 或 `ftp://` 開頭。
             </div>
             <div class="button-group">
                 <button class="btn btn-primary" onclick="detectAndGenerateQR()">偵測內容並生成 QR Code</button>
@@ -447,13 +448,13 @@
         let detectedItems = [];
         let qrCodes = [];
 
-        // 全新的正則表達式，用於在整個輸入字串中查找「標籤: 網址」模式
-        // 它會查找：
-        // (?:^|\s*\*+\s*)：非捕獲組，匹配字串開頭，或前面有任意空格和至少一個星號（處理 `**` 分隔符或開頭的 `**`）
-        // ([^:：\n]+?)：捕獲組1，非貪婪匹配標籤內容（非冒號、非換行符）
-        // [:：]\s*：匹配中文或英文冒號，後面跟隨任意空格
-        // ((?:https?|ftp):\/\/[^\s]+)：捕獲組2，匹配網址（http/https/ftp 開頭，直到遇到空格或換行符）
-        const itemExtractionRegex = /(?:^|\s*\*+\s*)([^:：\n]+?)[:：]\s*((?:https?|ftp):\/\/[^\s]+)/g;
+        // 更新後的正則表達式，可同時匹配 '標籤:網址' 和 '標籤,網址' 格式
+        // (?:^|\s*\*+\s*)：非捕獲組，匹配行首或 `**` 前綴
+        // ([^:：,\n]+?)：捕獲組1 (標籤)，不包含分隔符或換行符
+        // (?:[:：]\s*|\s*,\s*)：非捕獲組 (分隔符)，匹配冒號或逗號，並允許前後有空格
+        // ((?:https?|ftp):\/\/[^\s]+)：捕獲組2 (網址)
+        // 'g' 代表全局搜索, 'm' 代表多行模式 (使 `^` 能匹配每行的開頭)
+        const itemExtractionRegex = /(?:^|\s*\*+\s*)([^:：,\n]+?)(?:[:：]\s*|\s*,\s*)((?:https?|ftp):\/\/[^\s]+)/gm;
 
         /**
          * 顯示自訂訊息框
@@ -502,21 +503,13 @@
 
             detectedItems = []; // 重置 detectedItems
             
-            // 使用 matchAll 查找所有符合「標籤: 網址」模式的項目
-            // itemExtractionRegex 現在捕獲的是 (?:^|\s*\*+\s*) ([^:：\n]+?) [:：]\s* ((?:https?|ftp):\/\/[^\s]+)
-            // match[1] 是前綴（如果有的話，例如 ' ** '）
-            // match[2] 是標籤內容
-            // match[3] 是網址
             const matches = input.matchAll(itemExtractionRegex);
 
             for (const match of matches) {
-                // 修正：match[1] 是標籤，match[2] 是內容 (網址)
-                let label = match[1].trim(); // 捕獲組 1 是實際的標籤內容
-                const content = match[2].trim(); // 捕獲組 2 是網址
+                // match[1] 是標籤, match[2] 是內容 (網址)
+                let label = match[1].trim(); 
+                const content = match[2].trim(); 
 
-                // 再次清理標籤，確保移除了所有可能的多餘星號和空格
-                // 例如 " ** 00 客變階段" 應該變成 "00 客變階段"
-                // 即使 itemExtractionRegex 已經處理了開頭的 **，這一步可以作為額外的保險。
                 label = label.replace(/^\s*\**\s*|\s*\**\s*$/g, '').trim();
 
                 // 確保內容是有效的 URL
@@ -524,15 +517,15 @@
                     new URL(content); // 嘗試建立 URL 物件，驗證網址有效性
                     if (label && content) { // 確保標籤和內容都不為空
                         detectedItems.push({ content: content, label: label });
-                        console.log(`偵測到帶標籤項目: 標籤='${label}', 內容='${content}'`); // Debugging log
+                        console.log(`偵測到項目: 標籤='${label}', 內容='${content}'`); // Debugging log
                     }
                 } catch (e) {
-                    console.warn(`跳過無效的網址格式或內容: 標籤='${label}', 內容='${content}' (URL驗證失敗)`, e);
+                    console.warn(`跳過無效的網址格式: 標籤='${label}', 內容='${content}'`, e);
                 }
             }
 
             if (detectedItems.length === 0) {
-                showCustomModal('沒有偵測到內容', '未偵測到任何有效的「標籤: 網址」格式項目！請檢查您的輸入。請確保網址以 http://, https://, 或 ftp:// 開頭，並且每個項目都以「標籤: 網址」格式呈現。其他文字將會被忽略。');
+                showCustomModal('沒有偵測到內容', '未偵測到任何有效的「標籤: 網址」或「標籤,網址」格式項目！請檢查您的輸入，並確保網址以 http://, https://, 或 ftp:// 開頭。');
                 return;
             }
 
@@ -562,7 +555,6 @@
                 const qrItem = document.createElement('div');
                 qrItem.className = 'qr-item';
 
-                // 如果沒有自訂標籤，則使用預設標籤「項目 X」
                 const displayLabel = item.label || `項目 ${index + 1}`;
 
                 qrItem.innerHTML = `
@@ -578,22 +570,22 @@
                 const qrCodeElement = document.getElementById(`qr-container-${index}`);
                 try {
                     const qrCode = new QRCode(qrCodeElement, {
-                        text: item.content, // Use item.content for QR code data
+                        text: item.content,
                         width: 200,
                         height: 200,
                         colorDark: "#000000",
                         colorLight: "#ffffff",
-                        correctLevel: QRCode.CorrectLevel.H // 高容錯率
+                        correctLevel: QRCode.CorrectLevel.H
                     });
                     qrCodes.push({
                         qrCode,
                         label: displayLabel,
-                        content: item.content, // Store content
+                        content: item.content,
                         hasCustomLabel: !!item.label
                     });
-                    console.log(`成功生成 QR Code for 內容 (第${index + 1}個): '${item.content.substring(0, Math.min(item.content.length, 50))}...'`); // Debugging log
+                    console.log(`成功生成 QR Code (第${index + 1}個): '${item.content.substring(0, 50)}...'`);
                 } catch (e) {
-                    console.error(`生成 QR Code 失敗 for 內容 (第${index + 1}個): ${item.content}`, e); // Enhanced error log
+                    console.error(`生成 QR Code 失敗 (第${index + 1}個): ${item.content}`, e);
                     qrCodeElement.innerHTML = `<p style="color: red; font-size: 0.9rem;">生成失敗</p>`;
                 }
             });
@@ -620,7 +612,6 @@
                 return;
             }
 
-            // 顯示進度模態框
             const progressModal = document.getElementById('progressModal');
             const progressFill = document.getElementById('progressFill');
             const progressText = document.getElementById('progressText');
@@ -632,59 +623,45 @@
             try {
                 const zip = new JSZip();
                 const folder = zip.folder("QR-Codes");
-                const fileNames = new Map(); // 用於追蹤檔案名稱和處理重複
+                const fileNames = new Map();
 
                 for (let i = 0; i < qrCodes.length; i++) {
                     const item = qrCodes[i];
                     const canvas = document.querySelector(`#qr-container-${i} canvas`);
 
                     if (canvas) {
-                        // 清理標籤，移除不允許的檔案名稱字元
-                        // 將所有非法檔案名稱字元替換為底線
                         let fileName = item.hasCustomLabel ?
                             item.label.replace(/[\\/:*?"<>|]/g, '_').trim() :
                             `QR-${String(i + 1).padStart(3, '0')}`;
 
-                        // 如果清理後的檔案名稱為空，則使用預設名稱
                         if (!fileName) {
-                            // 如果自訂標籤被清理後變空，嘗試使用內容的前幾個字元作為檔案名稱
-                            fileName = item.content.substring(0, Math.min(item.content.length, 20)).replace(/[\\/:*?"<>|]/g, '_').trim() || `QR-${String(i + 1).padStart(3, '0')}`;
-                            if (!fileName) { // 如果內容也無法生成有效名稱
-                                fileName = `QR-${String(i + 1).padStart(3, '0')}`;
-                            }
+                            fileName = `QR-${String(i + 1).padStart(3, '0')}`;
                         }
 
-                        // 處理重複的檔案名稱，添加數字後綴
                         let originalFileName = fileName;
                         let count = 1;
                         while (fileNames.has(fileName)) {
                             fileName = `${originalFileName}_${++count}`;
                         }
-                        fileNames.set(fileName, true); // 標記為已使用
+                        fileNames.set(fileName, true);
 
                         const base64Data = canvas.toDataURL('image/png').split(',')[1];
                         folder.file(`${fileName}.png`, base64Data, { base64: true });
 
-                        // 更新進度條和文字
                         const progress = Math.round((i + 1) / qrCodes.length * 100);
                         progressFill.style.width = `${progress}%`;
                         progressFill.textContent = `${progress}%`;
                         progressText.textContent = `處理中 ${i + 1} / ${qrCodes.length}`;
-
-                        // 小幅延遲，讓進度條動畫更流暢
+                        
                         await new Promise(resolve => setTimeout(resolve, 10));
                     }
                 }
 
-                // 添加說明文件
                 const readmeContent = `QR Code 批次生成結果\n=======================\n\n生成時間：${new Date().toLocaleString('zh-TW')}\n總數量：${qrCodes.length} 個 QR Code\n\n詳細清單：\n${qrCodes.map((item, i) => `${i + 1}. ${item.label}   內容：${item.content}`).join('\n')}\n\n說明：\n- 每個 PNG 檔案都是一個 QR Code 圖片\n- 掃描 QR Code 即可讀取對應的文字內容\n- 檔案名稱對應上述清單中的標籤（若有）或自動生成名稱`;
-
                 folder.file("README.txt", readmeContent);
 
-                // 生成並下載 ZIP
                 progressText.textContent = '正在壓縮檔案...';
                 const content = await zip.generateAsync({ type: "blob" }, function update(metadata) {
-                    // 更新 ZIP 壓縮進度
                     const zipProgress = Math.round(metadata.percent);
                     progressFill.style.width = `${zipProgress}%`;
                     progressFill.textContent = `${zipProgress}%`;
@@ -692,8 +669,7 @@
                 });
 
                 saveAs(content, `QR-Codes-${new Date().getTime()}.zip`);
-
-                // 移除進度提示並顯示成功訊息
+                
                 setTimeout(() => {
                     progressModal.classList.remove('active');
                     showCustomModal('下載完成', `成功下載 ${qrCodes.length} 個 QR Code！\n\n檔案已儲存為 ZIP 格式。`);
@@ -728,7 +704,7 @@
                 document.getElementById('stats').style.display = 'none';
                 detectedItems = [];
                 qrCodes = [];
-            }, true); // true 表示這是一個確認框
+            }, true);
         }
 
         // 支援 Ctrl + Enter 鍵快速生成
